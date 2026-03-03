@@ -82,14 +82,28 @@ rm -rf "$(dirname "$ICONSET_DIR")"
 echo "    Generated AppIcon.icns"
 
 # Codesign: sign all Sparkle internals inside-out, then framework, then app
+# Extract entitlements first to avoid --preserve-metadata timestamp errors
 echo "==> Codesigning with Developer ID..."
 SPARKLE_FW="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
-codesign --force --options runtime --sign "$SIGN_IDENTITY" --preserve-metadata=entitlements "$SPARKLE_FW/Versions/B/XPCServices/Installer.xpc"
-codesign --force --options runtime --sign "$SIGN_IDENTITY" --preserve-metadata=entitlements "$SPARKLE_FW/Versions/B/XPCServices/Downloader.xpc"
-codesign --force --options runtime --sign "$SIGN_IDENTITY" --preserve-metadata=entitlements "$SPARKLE_FW/Versions/B/Autoupdate"
-codesign --force --options runtime --sign "$SIGN_IDENTITY" --preserve-metadata=entitlements "$SPARKLE_FW/Versions/B/Updater.app"
-codesign --force --options runtime --sign "$SIGN_IDENTITY" "$SPARKLE_FW"
-codesign --force --options runtime --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
+SPARKLE_BINS=(
+    "$SPARKLE_FW/Versions/B/XPCServices/Installer.xpc"
+    "$SPARKLE_FW/Versions/B/XPCServices/Downloader.xpc"
+    "$SPARKLE_FW/Versions/B/Autoupdate"
+    "$SPARKLE_FW/Versions/B/Updater.app"
+)
+for BIN in "${SPARKLE_BINS[@]}"; do
+    ENT=$(mktemp /tmp/ent.XXXXXX.plist)
+    # :- prefix outputs XML plist format (not binary DER)
+    codesign -d --entitlements :- "$BIN" > "$ENT" 2>/dev/null || true
+    if [ -s "$ENT" ] && grep -q '<key>' "$ENT" 2>/dev/null; then
+        codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" --entitlements "$ENT" "$BIN"
+    else
+        codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$BIN"
+    fi
+    rm -f "$ENT"
+done
+codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$SPARKLE_FW"
+codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
 echo "    Signed with: $SIGN_IDENTITY"
 
 # Verify signature
