@@ -50,7 +50,15 @@ fi
 cp "$BUILD_DIR/$EXECUTABLE" "$APP_BUNDLE/Contents/MacOS/"
 
 # Fix rpath: SPM sets @loader_path but we need @loader_path/../Frameworks
-install_name_tool -add_rpath @loader_path/../Frameworks "$APP_BUNDLE/Contents/MacOS/$EXECUTABLE" 2>/dev/null || true
+RPATH="@loader_path/../Frameworks"
+if otool -l "$APP_BUNDLE/Contents/MacOS/$EXECUTABLE" 2>/dev/null | grep -q "$RPATH"; then
+    echo "    rpath $RPATH already present"
+else
+    if ! install_name_tool -add_rpath "$RPATH" "$APP_BUNDLE/Contents/MacOS/$EXECUTABLE"; then
+        echo "    ERROR: Failed to add rpath $RPATH with install_name_tool" >&2
+        exit 1
+    fi
+fi
 
 # Copy Info.plist
 cp "$PROJECT_DIR/VibeUsage/Info.plist" "$APP_BUNDLE/Contents/"
@@ -90,7 +98,7 @@ echo "==> Codesigning..."
 SPARKLE_FW="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 
 # Check if Developer ID certificate is available
-if security find-identity -v -p codesigning | grep -q "$SIGN_IDENTITY"; then
+if security find-identity -v -p codesigning | grep -Fq "$SIGN_IDENTITY"; then
     echo "    Using Developer ID: $SIGN_IDENTITY"
     SPARKLE_BINS=(
         "$SPARKLE_FW/Versions/B/XPCServices/Installer.xpc"
@@ -118,6 +126,7 @@ else
     fi
     echo "    Developer ID not found, using ad-hoc signing (local use only)"
     codesign --force --deep -s - "$APP_BUNDLE"
+    codesign --verify --deep --strict "$APP_BUNDLE"
 fi
 
 if $NOTARIZE; then
