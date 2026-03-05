@@ -112,6 +112,10 @@ if security find-identity -v -p codesigning | grep -q "$SIGN_IDENTITY"; then
     codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
     codesign --verify --deep --strict "$APP_BUNDLE"
 else
+    if $NOTARIZE; then
+        echo "    ERROR: Developer ID certificate not found. Notarization requires a valid Developer ID."
+        exit 1
+    fi
     echo "    Developer ID not found, using ad-hoc signing (local use only)"
     codesign --force --deep -s - "$APP_BUNDLE"
 fi
