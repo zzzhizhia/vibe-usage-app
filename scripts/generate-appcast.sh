@@ -34,9 +34,16 @@ echo "==> Generating appcast.xml..."
 echo "    Using: $GENERATE_APPCAST"
 echo "    Source: $DIST_DIR"
 
-# generate_appcast scans the directory for ZIPs and creates/updates appcast.xml.
-# It reads Ed25519 key from Keychain automatically.
+# generate_appcast scans the directory for archives. Temporarily hide the DMG
+# to avoid "duplicate version" errors (DMG is for initial download, ZIP for updates).
+DMG_PATH="$DIST_DIR/VibeUsage.dmg"
+if [ -f "$DMG_PATH" ]; then
+    mv "$DMG_PATH" "$DMG_PATH.bak"
+fi
 "$GENERATE_APPCAST" "$DIST_DIR"
+if [ -f "$DMG_PATH.bak" ]; then
+    mv "$DMG_PATH.bak" "$DMG_PATH"
+fi
 
 if [ -f "$DIST_DIR/appcast.xml" ]; then
     echo "==> Done! appcast.xml generated at:"

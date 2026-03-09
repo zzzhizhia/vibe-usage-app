@@ -8,13 +8,7 @@ macOS 菜单栏应用，自动追踪 AI 编程工具的 Token 用量和费用。
 
 ## 下载
 
-从 [Releases](https://github.com/vibe-cafe/vibe-usage-app/releases/latest) 下载最新版 `Vibe-Usage.zip`，解压后将 `Vibe Usage.app` 拖入 Applications 文件夹。
-
-> **首次打开**：macOS 会提示无法验证开发者。解压后在终端运行：
-> ```bash
-> xattr -cr /Applications/Vibe\ Usage.app
-> ```
-> 然后正常双击打开即可。
+从 [Releases](https://github.com/vibe-cafe/vibe-usage-app/releases/latest) 下载 `VibeUsage.dmg`，打开后将 `Vibe Usage.app` 拖入 Applications 文件夹。
 
 ## 配置
 

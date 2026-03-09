@@ -13,6 +13,7 @@ BUILD_DIR="$PROJECT_DIR/.build/release"
 DIST_DIR="$PROJECT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 ZIP_PATH="$DIST_DIR/VibeUsage.zip"
+DMG_PATH="$DIST_DIR/VibeUsage.dmg"
 ICON_SOURCE_DIR="$PROJECT_DIR/VibeUsage/Resources/Assets.xcassets/AppIcon.appiconset"
 SIGN_IDENTITY="Developer ID Application: Yin Ming (D33463FWDZ)"
 NOTARIZE_PROFILE="VibeUsage"
@@ -36,7 +37,6 @@ echo "==> Embedding Sparkle.framework..."
 mkdir -p "$APP_BUNDLE/Contents/Frameworks"
 SPARKLE_FRAMEWORK=$(find "$PROJECT_DIR/.build/artifacts" -name "Sparkle.framework" -path "*/macos-*" | head -1)
 if [ -z "$SPARKLE_FRAMEWORK" ]; then
-    # Fallback: search in the build directory
     SPARKLE_FRAMEWORK=$(find "$PROJECT_DIR/.build" -name "Sparkle.framework" -not -path "*/Sparkle.framework/Versions/*" | head -1)
 fi
 if [ -d "$SPARKLE_FRAMEWORK" ]; then
@@ -46,14 +46,11 @@ else
     echo "    ERROR: Sparkle.framework not found in build artifacts"
     exit 1
 fi
-# Copy binary and fix rpath for embedded frameworks
 cp "$BUILD_DIR/$EXECUTABLE" "$APP_BUNDLE/Contents/MacOS/"
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BUNDLE/Contents/MacOS/$EXECUTABLE"
 
-# Copy Info.plist
 cp "$PROJECT_DIR/VibeUsage/Info.plist" "$APP_BUNDLE/Contents/"
 
-# Copy SPM resource bundle (contains menubar-icon.png and other processed resources)
 RESOURCE_BUNDLE="$BUILD_DIR/VibeUsage_VibeUsage.bundle"
 if [ -d "$RESOURCE_BUNDLE" ]; then
     cp -R "$RESOURCE_BUNDLE" "$APP_BUNDLE/Contents/Resources/"
@@ -62,7 +59,6 @@ else
     echo "    WARNING: SPM resource bundle not found at $RESOURCE_BUNDLE"
 fi
 
-# Generate .icns from PNGs
 echo "==> Generating AppIcon.icns..."
 ICONSET_DIR=$(mktemp -d)/AppIcon.iconset
 mkdir -p "$ICONSET_DIR"
@@ -70,7 +66,7 @@ mkdir -p "$ICONSET_DIR"
 cp "$ICON_SOURCE_DIR/icon_16x16.png"      "$ICONSET_DIR/icon_16x16.png"
 cp "$ICON_SOURCE_DIR/icon_16x16@2x.png"   "$ICONSET_DIR/icon_16x16@2x.png"
 cp "$ICON_SOURCE_DIR/icon_32x32.png"       "$ICONSET_DIR/icon_32x32.png"
-cp "$ICON_SOURCE_DIR/icon_32x32@2x.png"   "$ICONSET_DIR/icon_32x32@2x.png"
+cp "$ICON_SOURCE_DIR/icon_32x32@2x.png"    "$ICONSET_DIR/icon_32x32@2x.png"
 cp "$ICON_SOURCE_DIR/icon_128x128.png"     "$ICONSET_DIR/icon_128x128.png"
 cp "$ICON_SOURCE_DIR/icon_128x128@2x.png"  "$ICONSET_DIR/icon_128x128@2x.png"
 cp "$ICON_SOURCE_DIR/icon_256x256.png"     "$ICONSET_DIR/icon_256x256.png"
@@ -94,7 +90,6 @@ SPARKLE_BINS=(
 )
 for BIN in "${SPARKLE_BINS[@]}"; do
     ENT=$(mktemp /tmp/ent.XXXXXX.plist)
-    # :- prefix outputs XML plist format (not binary DER)
     codesign -d --entitlements :- "$BIN" > "$ENT" 2>/dev/null || true
     if [ -s "$ENT" ] && grep -q '<key>' "$ENT" 2>/dev/null; then
         codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" --entitlements "$ENT" "$BIN"
@@ -107,34 +102,53 @@ codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$SPARKLE
 codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
 echo "    Signed with: $SIGN_IDENTITY"
 
-# Verify signature
 codesign --verify --deep --strict "$APP_BUNDLE"
 
 if $NOTARIZE; then
-    # Zip for notarization
+    # Zip for notarization submission
     echo "==> Zipping for notarization..."
     rm -f "$ZIP_PATH"
-    ditto -c -k --keepParent "$APP_BUNDLE" "$ZIP_PATH"
+    ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_PATH"
 
-    # Submit for notarization
     echo "==> Submitting for notarization (this may take a few minutes)..."
     xcrun notarytool submit "$ZIP_PATH" \
         --keychain-profile "$NOTARIZE_PROFILE" \
         --wait
 
-    # Staple the ticket
     echo "==> Stapling notarization ticket..."
     xcrun stapler staple "$APP_BUNDLE"
 
-    # Re-zip with stapled ticket for distribution
-    echo "==> Creating distribution zip..."
+    # Create distribution ZIP (for Sparkle auto-updates)
+    echo "==> Creating Sparkle update zip..."
     rm -f "$ZIP_PATH"
-    ditto -c -k --keepParent "$APP_BUNDLE" "$ZIP_PATH"
+    ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_PATH"
+
+    # Create distribution DMG (for initial download)
+    echo "==> Creating distribution DMG..."
+    rm -f "$DMG_PATH"
+    DMG_STAGING=$(mktemp -d)
+    cp -R "$APP_BUNDLE" "$DMG_STAGING/"
+    ln -s /Applications "$DMG_STAGING/Applications"
+
+    hdiutil create -volname "$APP_NAME" \
+        -srcfolder "$DMG_STAGING" \
+        -ov -format UDZO \
+        "$DMG_PATH"
+    rm -rf "$DMG_STAGING"
+
+    codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG_PATH"
+
+    echo "==> Notarizing DMG..."
+    xcrun notarytool submit "$DMG_PATH" \
+        --keychain-profile "$NOTARIZE_PROFILE" \
+        --wait
+    xcrun stapler staple "$DMG_PATH"
 
     echo ""
-    echo "==> Done! Signed + notarized app bundle at:"
+    echo "==> Done! Signed + notarized:"
     echo "    $APP_BUNDLE"
-    echo "    $ZIP_PATH (ready for distribution)"
+    echo "    $DMG_PATH (initial download)"
+    echo "    $ZIP_PATH (Sparkle updates)"
 else
     echo ""
     echo "==> Done! Signed app bundle at:"
