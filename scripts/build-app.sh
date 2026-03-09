@@ -46,8 +46,9 @@ else
     echo "    ERROR: Sparkle.framework not found in build artifacts"
     exit 1
 fi
-# Copy binary
+# Copy binary and fix rpath for embedded frameworks
 cp "$BUILD_DIR/$EXECUTABLE" "$APP_BUNDLE/Contents/MacOS/"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BUNDLE/Contents/MacOS/$EXECUTABLE"
 
 # Copy Info.plist
 cp "$PROJECT_DIR/VibeUsage/Info.plist" "$APP_BUNDLE/Contents/"
