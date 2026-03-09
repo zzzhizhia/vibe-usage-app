@@ -9,9 +9,9 @@
     <key>CFBundleIdentifier</key>
     <string>ai.vibecafe.vibe-usage</string>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>3</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.2.1</string>
+    <string>0.2.2</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>
@@ -27,7 +27,7 @@
     <key>SUFeedURL</key>
     <string>https://github.com/vibe-cafe/vibe-usage-app/releases/latest/download/appcast.xml</string>
     <key>SUPublicEDKey</key>
-    <string>hBlxWYhFghf0xevkVxU+CZfu+8H7I/+CveobdjyKoDo=</string>
+    <string>0GXdx5+udtV3oD0t8FQNih6WGLcwpn0EZrsvT4w7AyM=</string>
     <key>SUEnableAutomaticChecks</key>
     <true/>
     <key>SUAutomaticallyUpdate</key>
