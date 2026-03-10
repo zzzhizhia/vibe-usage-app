@@ -46,8 +46,6 @@ struct VibeUsageApp: App {
 
     init() {
         appState.initialize()
-        HookManager.writeMarker()
-        HookManager.removeHooks()
     }
 
     private var menuBarText: String {
@@ -62,10 +60,7 @@ struct VibeUsageApp: App {
     }
 }
 
-/// Handles app termination to restore hooks and clean up marker
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
-        HookManager.restoreHooks()
-        HookManager.removeMarker()
     }
 }
