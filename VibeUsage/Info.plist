@@ -9,9 +9,9 @@
     <key>CFBundleIdentifier</key>
     <string>ai.vibecafe.vibe-usage</string>
     <key>CFBundleVersion</key>
-    <string>3</string>
+    <string>4</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.2.2</string>
+    <string>0.2.3</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>
