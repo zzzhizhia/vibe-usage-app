@@ -10,6 +10,7 @@ struct BarChartView: View {
         var output: Int = 0
         var total: Int { input + output }
         var cost: Double = 0
+        var activeMinutes: Double = 0
     }
 
     private var isHourly: Bool {
@@ -38,6 +39,14 @@ struct BarChartView: View {
             buckets[key]!.input += bucket.inputTokens
             buckets[key]!.output += bucket.outputTokens
             buckets[key]!.cost += bucket.estimatedCost ?? 0
+        }
+
+        for session in appState.filteredSessions {
+            let key = isHourly ? session.hourKey : session.dayKey
+            if buckets[key] == nil {
+                buckets[key] = BarData(id: key)
+            }
+            buckets[key]!.activeMinutes += Double(session.activeSeconds) / 60.0
         }
 
         if isHourly {
@@ -81,6 +90,14 @@ struct BarChartView: View {
         max(chartData.map(\.total).max() ?? 0, 1)
     }
 
+    private var maxCost: Double {
+        max(chartData.map(\.cost).max() ?? 0, 0.001)
+    }
+
+    private var maxActiveMinutes: Double {
+        max(chartData.map(\.activeMinutes).max() ?? 0, 0.1)
+    }
+
     private var labelInterval: Int {
         let count = chartData.count
         if isHourly {
@@ -94,6 +111,8 @@ struct BarChartView: View {
     }
 
     var body: some View {
+        @Bindable var state = appState
+
         VStack(spacing: 0) {
             // Header
             HStack {
@@ -101,10 +120,23 @@ struct BarChartView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Color(white: 0.63))
                 Spacer()
-                HStack(spacing: 12) {
-                    legendItem(color: Color(white: 0.5), label: "输入")
-                    legendItem(color: Color.white.opacity(0.9), label: "输出")
+                HStack(spacing: 2) {
+                    ForEach(ChartMode.allCases, id: \.self) { mode in
+                        Button(action: { state.chartMode = mode }) {
+                            Text(mode.rawValue)
+                                .font(.system(size: 10))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(state.chartMode == mode ? Color(white: 0.2) : Color.clear)
+                                .foregroundStyle(state.chartMode == mode ? Color.white : Color(white: 0.45))
+                                .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
+                .background(Color(white: 0.09))
+                .cornerRadius(4)
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(white: 0.16), lineWidth: 1))
             }
             .padding(.bottom, 12)
 
@@ -112,9 +144,18 @@ struct BarChartView: View {
             HStack(alignment: .bottom, spacing: 0) {
                 // Y-axis
                 VStack {
-                    Text(Formatters.formatNumber(maxTotal))
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(Color(white: 0.38))
+                    Group {
+                        switch state.chartMode {
+                        case .token:
+                            Text(Formatters.formatNumber(maxTotal))
+                        case .cost:
+                            Text(Formatters.formatCost(maxCost))
+                        case .activeTime:
+                            Text(Formatters.formatDuration(Int(maxActiveMinutes * 60)))
+                        }
+                    }
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(Color(white: 0.38))
                     Spacer()
                     Text("0")
                         .font(.system(size: 9, design: .monospaced))
@@ -126,19 +167,33 @@ struct BarChartView: View {
                 // Bars
                 HStack(alignment: .bottom, spacing: 1) {
                     ForEach(chartData) { bar in
-                        let inputH = CGFloat(bar.input) / CGFloat(maxTotal) * 200
-                        let outputH = CGFloat(bar.output) / CGFloat(maxTotal) * 200
-
                         VStack(spacing: 0) {
-                            // Output (top, white)
-                            Rectangle()
-                                .fill(Color.white.opacity(0.9))
-                                .frame(height: outputH)
-                                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 2, topTrailingRadius: 2))
-                            // Input (bottom, zinc)
-                            Rectangle()
-                                .fill(Color(white: 0.5))
-                                .frame(height: inputH)
+                            switch state.chartMode {
+                            case .token:
+                                let inputH = CGFloat(bar.input) / CGFloat(maxTotal) * 200
+                                let outputH = CGFloat(bar.output) / CGFloat(maxTotal) * 200
+                                // Output (top, white)
+                                Rectangle()
+                                    .fill(Color.white.opacity(0.9))
+                                    .frame(height: outputH)
+                                    .clipShape(UnevenRoundedRectangle(topLeadingRadius: 2, topTrailingRadius: 2))
+                                // Input (bottom, zinc)
+                                Rectangle()
+                                    .fill(Color(white: 0.5))
+                                    .frame(height: inputH)
+                            case .cost:
+                                let costH = CGFloat(bar.cost) / CGFloat(maxCost) * 200
+                                Rectangle()
+                                    .fill(Color(red: 0.2, green: 0.8, blue: 0.5))
+                                    .frame(height: costH)
+                                    .clipShape(UnevenRoundedRectangle(topLeadingRadius: 2, topTrailingRadius: 2))
+                            case .activeTime:
+                                let activeH = CGFloat(bar.activeMinutes) / CGFloat(maxActiveMinutes) * 200
+                                Rectangle()
+                                    .fill(Color(red: 0.38, green: 0.6, blue: 1.0))
+                                    .frame(height: activeH)
+                                    .clipShape(UnevenRoundedRectangle(topLeadingRadius: 2, topTrailingRadius: 2))
+                            }
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 200, alignment: .bottom)
@@ -160,16 +215,26 @@ struct BarChartView: View {
                                 Text(isHourly ? Formatters.formatHourShort(bar.id) : Formatters.formatDateShort(bar.id))
                                     .foregroundStyle(.white)
                                     .fontWeight(.medium)
-                                Text("总 Token: \(Formatters.formatNumber(bar.total))")
-                                    .foregroundStyle(Color(white: 0.8))
-                                HStack(spacing: 8) {
-                                    Text("输入: \(Formatters.formatNumber(bar.input))")
-                                        .foregroundStyle(Color(white: 0.5))
-                                    Text("输出: \(Formatters.formatNumber(bar.output))")
-                                        .foregroundStyle(Color(white: 0.5))
+                                
+                                switch state.chartMode {
+                                case .token:
+                                    Text("总 Token: \(Formatters.formatNumber(bar.total))")
+                                        .foregroundStyle(Color(white: 0.8))
+                                    HStack(spacing: 8) {
+                                        Text("输入: \(Formatters.formatNumber(bar.input))")
+                                            .foregroundStyle(Color(white: 0.5))
+                                        Text("输出: \(Formatters.formatNumber(bar.output))")
+                                            .foregroundStyle(Color(white: 0.5))
+                                    }
+                                    Text("费用: \(Formatters.formatCost(bar.cost))")
+                                        .foregroundStyle(Color(red: 0.2, green: 0.8, blue: 0.5))
+                                case .cost:
+                                    Text("费用: \(Formatters.formatCost(bar.cost))")
+                                        .foregroundStyle(Color(red: 0.2, green: 0.8, blue: 0.5))
+                                case .activeTime:
+                                    Text("活跃时长: \(Formatters.formatDuration(Int(bar.activeMinutes * 60)))")
+                                        .foregroundStyle(Color(red: 0.38, green: 0.6, blue: 1.0))
                                 }
-                                Text("费用: \(Formatters.formatCost(bar.cost))")
-                                    .foregroundStyle(Color(red: 0.2, green: 0.8, blue: 0.5))
                             }
                             .font(.system(size: 10))
                             .padding(8)
@@ -216,14 +281,4 @@ struct BarChartView: View {
         )
     }
 
-    private func legendItem(color: Color, label: String) -> some View {
-        HStack(spacing: 4) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(color)
-                .frame(width: 10, height: 10)
-            Text(label)
-                .font(.system(size: 10))
-                .foregroundStyle(Color(white: 0.5))
-        }
-    }
 }

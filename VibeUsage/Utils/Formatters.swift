@@ -65,6 +65,22 @@ enum Formatters {
         return hourKey
     }
 
+    /// Format duration in seconds: 90 → "1m", 3661 → "1h 1m", 86400+ → "1d 2h"
+    static func formatDuration(_ seconds: Int) -> String {
+        if seconds <= 0 { return "0m" }
+        let days = seconds / 86400
+        let hours = (seconds % 86400) / 3600
+        let minutes = (seconds % 3600) / 60
+
+        if days > 0 {
+            return hours > 0 ? "\(days)d \(hours)h" : "\(days)d"
+        }
+        if hours > 0 {
+            return minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h"
+        }
+        return "\(max(minutes, 1))m"
+    }
+
     /// Parse "yyyy-MM-dd" to Date
     static func dateFromDayKey(_ key: String) -> Date? {
         let formatter = DateFormatter()

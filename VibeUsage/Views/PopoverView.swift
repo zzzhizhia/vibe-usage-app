@@ -226,6 +226,27 @@ struct PopoverView: View {
             .buttonStyle(.plain)
             .padding(.leading, 8)
 
+            Button {
+                if let url = URL(string: "\(AppConfig.defaultApiUrl)/usage/rank") {
+                    NSWorkspace.shared.open(url)
+                }
+            } label: {
+                HStack(spacing: 3) {
+                    Text("排行榜")
+                        .font(.system(size: 10))
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 7, weight: .medium))
+                }
+                .foregroundStyle(Color(white: 0.5))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color(white: 0.12))
+                .cornerRadius(4)
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(white: 0.18), lineWidth: 0.5))
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 4)
+
             Spacer()
 
             // Time range selector

@@ -40,5 +40,6 @@ struct UsageBucket: Codable, Identifiable, Equatable {
 
 struct UsageResponse: Codable {
     let buckets: [UsageBucket]
+    let sessions: [UsageSession]?
     let hasAnyData: Bool
 }

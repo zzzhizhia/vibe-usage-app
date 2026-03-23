@@ -3,6 +3,7 @@ import SwiftUI
 struct FilterTagsView: View {
     @Environment(AppState.self) private var appState
     @State private var showProjects: Bool = UserDefaults.standard.object(forKey: "showProjects") as? Bool ?? false
+    @State private var expandedFamilies: Set<String> = Set()
 
     private var uniqueSources: [String] {
         Array(Set(appState.buckets.map(\.source))).sorted()
@@ -55,16 +56,83 @@ struct FilterTagsView: View {
             }
 
             if !uniqueModels.isEmpty {
-                filterRow(
-                    icon: "cpu",
-                    label: "模型",
-                    values: uniqueModels,
-                    selected: state.filters.models
-                ) { value in
-                    if state.filters.models.contains(value) {
-                        state.filters.models.remove(value)
-                    } else {
-                        state.filters.models.insert(value)
+                HStack(alignment: .top, spacing: 8) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "cpu")
+                            .font(.system(size: 10))
+                        Text("模型")
+                            .font(.system(size: 11))
+                    }
+                    .foregroundStyle(Color(white: 0.5))
+                    .frame(width: 44, alignment: .trailing)
+                    .padding(.vertical, 3)
+
+                    FlowLayout(spacing: 4) {
+                        let groups = groupModelsByFamily(uniqueModels)
+                        ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
+                            let familyKey = group.family?.key ?? "other"
+                            let familyLabel = group.family?.label ?? "其他"
+                            let familyModels = Set(group.models)
+                            let selectedInFamily = familyModels.intersection(state.filters.models)
+                            let allSelected = selectedInFamily.count == familyModels.count && !familyModels.isEmpty
+                            let someSelected = !selectedInFamily.isEmpty && !allSelected
+                            let isExpanded = expandedFamilies.contains(familyKey)
+
+                            Button {
+                                if allSelected {
+                                    state.filters.models.subtract(familyModels)
+                                } else {
+                                    state.filters.models.formUnion(familyModels)
+                                }
+                            } label: {
+                                Text(familyLabel)
+                                    .font(.system(size: 11))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(allSelected ? Color.white : (someSelected ? Color(white: 0.25) : Color(white: 0.09)))
+                                    .foregroundStyle(allSelected ? Color.black : (someSelected ? Color.white : Color(white: 0.63)))
+                                    .cornerRadius(4)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .stroke(allSelected ? Color(white: 0.0) : (someSelected ? Color.white.opacity(0.3) : Color(white: 0.16)), lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+
+                            HoverChevronButton(isExpanded: isExpanded) {
+                                if isExpanded {
+                                    expandedFamilies.remove(familyKey)
+                                } else {
+                                    expandedFamilies.insert(familyKey)
+                                }
+                            }
+
+                            if isExpanded {
+                                ForEach(group.models, id: \.self) { value in
+                                    let isActive = state.filters.models.contains(value)
+                                    Button {
+                                        if state.filters.models.contains(value) {
+                                            state.filters.models.remove(value)
+                                        } else {
+                                            state.filters.models.insert(value)
+                                        }
+                                    } label: {
+                                        Text(value.isEmpty ? "\u{672A}\u{77E5}" : value)
+                                            .font(.system(size: 11))
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 3)
+                                            .background(isActive ? Color.white : Color(white: 0.09))
+                                            .foregroundStyle(isActive ? Color.black : Color(white: 0.63))
+                                            .cornerRadius(4)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 4)
+                                                    .stroke(Color(white: isActive ? 0.0 : 0.16), lineWidth: 1)
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -200,5 +268,26 @@ struct FlowLayout: Layout {
         }
 
         return (positions, CGSize(width: maxX, height: y + rowHeight))
+    }
+}
+
+struct HoverChevronButton: View {
+    let isExpanded: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: isExpanded ? "chevron.left" : "chevron.right")
+                .font(.system(size: 8))
+                .foregroundStyle(isHovered ? Color.white : Color(white: 0.38))
+                .frame(height: 17)
+                .padding(.horizontal, 4)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }

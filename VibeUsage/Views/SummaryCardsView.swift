@@ -22,27 +22,29 @@ struct SummaryCardsView: View {
         filtered.reduce(0) { $0 + $1.computedTotal }
     }
 
-    private var inputTokens: Int {
-        filtered.reduce(0) { $0 + $1.inputTokens }
+    private var filteredSessions: [UsageSession] {
+        appState.filteredSessions
     }
 
-    private var outputTokens: Int {
-        filtered.reduce(0) { $0 + $1.outputTokens }
+    private var totalActiveSeconds: Int {
+        filteredSessions.reduce(0) { $0 + $1.activeSeconds }
     }
 
-    private var cachedTokens: Int {
-        filtered.reduce(0) { $0 + $1.cachedInputTokens }
+    private var totalDurationSeconds: Int {
+        filteredSessions.reduce(0) { $0 + $1.durationSeconds }
+    }
+
+    private var sessionCount: Int {
+        filteredSessions.count
     }
 
     var body: some View {
         HStack(spacing: 8) {
             StatCard(label: "预估费用", value: Formatters.formatCost(totalCost), color: Color(red: 0.2, green: 0.8, blue: 0.5))
             StatCard(label: "总 Token", value: Formatters.formatNumber(totalTokens))
-            StatCard(label: "输入 Token", value: Formatters.formatNumber(inputTokens))
-            StatCard(label: "输出 Token", value: Formatters.formatNumber(outputTokens))
-            if cachedTokens > 0 {
-                StatCard(label: "缓存 Token", value: Formatters.formatNumber(cachedTokens), color: Color(white: 0.5))
-            }
+            StatCard(label: "活跃时长", value: Formatters.formatDuration(totalActiveSeconds), color: Color(red: 0.38, green: 0.6, blue: 1.0))
+            StatCard(label: "总时长", value: Formatters.formatDuration(totalDurationSeconds))
+            StatCard(label: "会话数", value: "\(sessionCount)")
         }
     }
 }

@@ -9,7 +9,12 @@ enum SyncStatus: Equatable {
     case error(String)
 }
 
-/// Time range selection for dashboard
+enum ChartMode: String, CaseIterable {
+    case token = "Token"
+    case cost = "\u{8D39}\u{7528}"
+    case activeTime = "\u{6D3B}\u{8DC3}"
+}
+
 enum TimeRange: String, CaseIterable {
     case oneDay = "1D"
     case sevenDays = "7D"
@@ -53,12 +58,24 @@ final class AppState {
 
     // MARK: - Dashboard Data
     var buckets: [UsageBucket] = []
+    var sessions: [UsageSession] = []
     var hasAnyData: Bool = false
     var isLoadingData: Bool = false
 
     // MARK: - Dashboard Controls
     var timeRange: TimeRange = .oneDay
+    var chartMode: ChartMode = .token
     var filters: FilterState = .init()
+
+    var filteredSessions: [UsageSession] {
+        sessions.filter { session in
+            let f = filters
+            if !f.sources.isEmpty && !f.sources.contains(session.source) { return false }
+            if !f.projects.isEmpty && !f.projects.contains(session.project) { return false }
+            if !f.hostnames.isEmpty && !f.hostnames.contains(session.hostname) { return false }
+            return true
+        }
+    }
 
     // MARK: - Config
     var isConfigured: Bool = false
@@ -155,6 +172,7 @@ final class AppState {
         do {
             let response = try await client.fetchUsage(days: timeRange.days)
             buckets = response.buckets
+            sessions = response.sessions ?? []
             hasAnyData = response.hasAnyData
         } catch {
             // Silently fail — dashboard shows stale data or empty state
