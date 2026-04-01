@@ -194,6 +194,15 @@ All three assets required:
 - `VibeUsage.zip` — Sparkle auto-update downloads this (appcast `enclosure url` points to it)
 - `appcast.xml` — Sparkle fetches this feed to check for updates
 
+**After upload, always verify all 3 assets are present:**
+```bash
+gh release view vX.Y.Z
+```
+Network failures can silently drop assets. If an asset is missing, re-upload with:
+```bash
+gh release upload vX.Y.Z dist/<missing-file> --clobber
+```
+
 ### Common Release Mistakes
 
 | Mistake | Symptom |
@@ -201,7 +210,8 @@ All three assets required:
 | Forgot to increment `CFBundleVersion` in Info.plist | "X.Y.Z is currently the newest version" |
 | Forgot `generate-appcast.sh` | Sparkle feed still lists old version |
 | Forgot to upload `appcast.xml` to release | "An error occurred in retrieving update information" |
-| Deleted `VibeUsage.zip` from release | Sparkle update download fails |
+| Forgot to upload or dropped `VibeUsage.zip` | "An error occurred while downloading the update" |
+| Forgot to upload `VibeUsage.dmg` | New users can't download from release page |
 | Tag already exists from previous attempt | `gh release create` fails — use next patch version |
 
 ## Code Signing
