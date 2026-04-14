@@ -55,6 +55,7 @@ final class AppState {
     var syncStatus: SyncStatus = .idle
     var lastSyncTime: Date?
     var lastSyncMessage: String?
+    private var lastFetchTime: Date?
 
     // MARK: - Dashboard Data
     var buckets: [UsageBucket] = []
@@ -179,13 +180,23 @@ final class AppState {
             print("Failed to fetch usage data: \(error)")
         }
 
+        lastFetchTime = Date()
         isLoadingData = false
+    }
+
+    /// Fetch dashboard data unless we already fetched within the last 60s.
+    /// Used by popover open to avoid hammering /api/usage on rapid open/close.
+    func fetchUsageDataIfNeeded() async {
+        if let last = lastFetchTime, Date().timeIntervalSince(last) < 60 {
+            return
+        }
+        await fetchUsageData()
     }
 
     // MARK: - Private
 
     private func startScheduler() {
-        syncScheduler = SyncScheduler(interval: 300) { [weak self] in
+        syncScheduler = SyncScheduler(interval: 1800) { [weak self] in
             await self?.triggerSync()
         }
         syncScheduler?.start()

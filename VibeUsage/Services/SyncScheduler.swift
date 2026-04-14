@@ -1,6 +1,6 @@
 import Foundation
 
-/// Schedules periodic sync at a fixed interval (default 5 minutes)
+/// Schedules periodic sync at a fixed interval (default 30 minutes)
 final class SyncScheduler: Sendable {
     private let interval: TimeInterval
     private let action: @Sendable () async -> Void
@@ -8,9 +8,9 @@ final class SyncScheduler: Sendable {
     private nonisolated(unsafe) var started = false
 
     /// - Parameters:
-    ///   - interval: Seconds between syncs (default 300 = 5 minutes)
+    ///   - interval: Seconds between syncs (default 1800 = 30 minutes)
     ///   - action: Async closure to execute on each tick
-    init(interval: TimeInterval = 300, action: @escaping @Sendable () async -> Void) {
+    init(interval: TimeInterval = 1800, action: @escaping @Sendable () async -> Void) {
         self.interval = interval
         self.action = action
     }

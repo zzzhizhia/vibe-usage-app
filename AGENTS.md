@@ -88,10 +88,11 @@ VibeUsageApp (MenuBarExtra)
 4. Charts aggregate filtered buckets by time key or dimension
 
 ### Sync Pipeline
-1. `SyncScheduler` fires every 5 minutes
+1. `SyncScheduler` fires every 30 minutes (background upload + fetch)
 2. `SyncEngine` runs the `@vibe-cafe/vibe-usage` CLI via `CLIBridge`
 3. `RuntimeDetector` finds Node.js or Bun on the system
 4. After sync completes, `fetchUsageData()` refreshes the dashboard
+5. Opening the popover calls `fetchUsageDataIfNeeded()` (60s debounce) — fetch only, no upload
 
 ### Settings Window
 Settings uses a raw `NSWindow` via `SettingsWindowController` because SwiftUI `Settings` scenes don't work in LSUIElement apps. The window temporarily sets `NSApp.setActivationPolicy(.accessory)` for keyboard input, reverts to `.prohibited` on close.

@@ -21,8 +21,8 @@ struct PopoverView: View {
         .frame(width: 520)
         .background(Color(white: 0.04))
         .task {
-            if appState.isConfigured && appState.buckets.isEmpty && !appState.isLoadingData {
-                await appState.fetchUsageData()
+            if appState.isConfigured {
+                await appState.fetchUsageDataIfNeeded()
             }
         }
     }
