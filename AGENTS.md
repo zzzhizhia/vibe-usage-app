@@ -23,15 +23,16 @@ vibe-usage-app/                    # SwiftUI macOS menu bar app (SPM, Swift 6, m
 │   │   ├── BarChartView.swift     # Custom-drawn bar chart (hourly/daily trend)
 │   │   ├── DistributionChartsView.swift  # 4 donut pie charts (terminal, tool, model, project)
 │   │   ├── FilterTagsView.swift   # Filter pills for source/model/project/hostname
-│   │   ├── MenuBarIcon.swift      # Menu bar icon with sync status
 │   │   └── SettingsView.swift     # Settings form (API key, menu bar prefs, auto-start, updates)
 │   ├── Services/
 │   │   ├── APIClient.swift        # HTTP client for /api/usage (Bearer auth with vbu_ key)
 │   │   ├── SyncEngine.swift       # Orchestrates CLI sync (runs @vibe-cafe/vibe-usage via Node/Bun)
-│   │   ├── SyncScheduler.swift    # 5-minute interval auto-sync timer
+│   │   ├── SyncScheduler.swift    # 30-minute interval auto-sync timer
 │   │   ├── CLIBridge.swift        # Executes vibe-usage CLI as subprocess
 │   │   ├── RuntimeDetector.swift  # Finds Node.js or Bun runtime on the system
 │   │   ├── UpdaterViewModel.swift # Sparkle SPUUpdater bridge for SwiftUI
+│   │   ├── MenuBarController.swift # NSStatusItem + custom borderless popover panel (multi-line title, animated open/close)
+│   │   ├── PopoverPanel.swift     # NSPanel subclass that becomes key for TextField input
 │   │   └── SettingsWindowController.swift  # NSWindow wrapper (LSUIElement keyboard workaround)
 │   ├── Utils/
 │   │   ├── Formatters.swift       # Number, cost, date, time formatting
@@ -61,15 +62,15 @@ swift build -c release                   # Release build
 ## Architecture
 
 ### App Type
-LSUIElement menu bar app — no dock icon, no main window. Uses `MenuBarExtra` with `.window` style for the popover dashboard.
+LSUIElement menu bar app — no dock icon, no main window. `AppDelegate` owns a `MenuBarController` that manages an `NSStatusItem` plus a borderless `PopoverPanel` (custom NSPanel) hosting the SwiftUI dashboard. We dropped `MenuBarExtra` so the status item can render a multi-line `attributedTitle` (cost over tokens) and the panel can use a custom CASpring open/close animation anchored to the icon.
 
 ### State Management
 `AppState` is `@Observable` and injected via `@Environment`. All views read from it. No Combine, no ObservableObject (except `UpdaterViewModel` which bridges Sparkle's KVO).
 
 ### View Hierarchy
 ```
-VibeUsageApp (MenuBarExtra)
-└── PopoverView (520px wide)
+VibeUsageApp → AppDelegate → MenuBarController (NSStatusItem + PopoverPanel)
+└── PopoverView (520px wide, hosted in NSHostingController)
     ├── unconfiguredView          # First-run API key setup
     └── dashboardView
         ├── headerBar             # Title, "查看详情" link, time range (1D/7D/30D), settings gear

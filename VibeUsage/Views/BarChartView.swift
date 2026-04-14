@@ -162,7 +162,7 @@ struct BarChartView: View {
                         .foregroundStyle(Color(white: 0.38))
                 }
                 .frame(width: 40)
-                .frame(height: 200)
+                .frame(height: 150)
 
                 // Bars
                 HStack(alignment: .bottom, spacing: 1) {
@@ -170,8 +170,8 @@ struct BarChartView: View {
                         VStack(spacing: 0) {
                             switch state.chartMode {
                             case .token:
-                                let inputH = CGFloat(bar.input) / CGFloat(maxTotal) * 200
-                                let outputH = CGFloat(bar.output) / CGFloat(maxTotal) * 200
+                                let inputH = CGFloat(bar.input) / CGFloat(maxTotal) * 150
+                                let outputH = CGFloat(bar.output) / CGFloat(maxTotal) * 150
                                 // Output (top, white)
                                 Rectangle()
                                     .fill(Color.white.opacity(0.9))
@@ -182,13 +182,13 @@ struct BarChartView: View {
                                     .fill(Color(white: 0.5))
                                     .frame(height: inputH)
                             case .cost:
-                                let costH = CGFloat(bar.cost) / CGFloat(maxCost) * 200
+                                let costH = CGFloat(bar.cost) / CGFloat(maxCost) * 150
                                 Rectangle()
                                     .fill(Color(red: 0.2, green: 0.8, blue: 0.5))
                                     .frame(height: costH)
                                     .clipShape(UnevenRoundedRectangle(topLeadingRadius: 2, topTrailingRadius: 2))
                             case .activeTime:
-                                let activeH = CGFloat(bar.activeMinutes) / CGFloat(maxActiveMinutes) * 200
+                                let activeH = CGFloat(bar.activeMinutes) / CGFloat(maxActiveMinutes) * 150
                                 Rectangle()
                                     .fill(Color(red: 0.38, green: 0.6, blue: 1.0))
                                     .frame(height: activeH)
@@ -196,7 +196,7 @@ struct BarChartView: View {
                             }
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 200, alignment: .bottom)
+                        .frame(height: 150, alignment: .bottom)
                         .onHover { hovering in
                             hoveredBar = hovering ? bar.id : nil
                         }

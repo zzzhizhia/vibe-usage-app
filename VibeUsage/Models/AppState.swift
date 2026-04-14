@@ -201,9 +201,10 @@ final class AppState {
         }
         syncScheduler?.start()
 
-        // Initial sync + data fetch
-        Task {
-            await triggerSync()
-        }
+        // Fetch the dashboard immediately so the menu bar populates without waiting for
+        // the CLI subprocess (which can take 5-30s, or hang if Node isn't installed).
+        Task { await fetchUsageData() }
+        // Run the full sync (CLI upload + fetch) in parallel as the background pipeline.
+        Task { await triggerSync() }
     }
 }

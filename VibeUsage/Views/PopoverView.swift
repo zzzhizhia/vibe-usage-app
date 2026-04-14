@@ -20,11 +20,6 @@ struct PopoverView: View {
         }
         .frame(width: 520)
         .background(Color(white: 0.04))
-        .task {
-            if appState.isConfigured {
-                await appState.fetchUsageDataIfNeeded()
-            }
-        }
     }
 
     // MARK: - Unconfigured State
@@ -171,7 +166,7 @@ struct PopoverView: View {
                 }
                 .padding(16)
             }
-            .frame(minHeight: 300, maxHeight: 560)
+            .frame(height: 560)
 
             Divider()
                 .background(Color(white: 0.16))
