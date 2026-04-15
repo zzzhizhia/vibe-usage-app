@@ -23,6 +23,9 @@ if [[ "${1:-}" == "--notarize" ]]; then
     NOTARIZE=true
 fi
 
+echo "==> Checking version sync..."
+"$SCRIPT_DIR/check-version.sh"
+
 echo "==> Building release binary..."
 cd "$PROJECT_DIR"
 swift build -c release

@@ -7,10 +7,14 @@ import Sparkle
 @MainActor
 final class UpdaterViewModel: ObservableObject {
     private var updaterController: SPUStandardUpdaterController?
+    private let delegateProxy = UpdaterDelegateProxy()
 
     @Published var canCheckForUpdates = false
 
-    /// Whether Sparkle is available (real .app bundle with SUFeedURL).
+    /// The appcast item for a pending update, or nil if none has been discovered
+    /// (or the user skipped / installed it). Drives the in-popover update banner.
+    @Published var availableUpdate: SUAppcastItem?
+
     var isAvailable: Bool { updaterController != nil }
 
     init() {
@@ -24,17 +28,65 @@ final class UpdaterViewModel: ObservableObject {
 
         let controller = SPUStandardUpdaterController(
             startingUpdater: true,
-            updaterDelegate: nil,
+            updaterDelegate: delegateProxy,
             userDriverDelegate: nil
         )
         self.updaterController = controller
 
-        // Observe canCheckForUpdates via KVO and publish to SwiftUI.
+        delegateProxy.onFoundValidUpdate = { [weak self] item in
+            Task { @MainActor in self?.availableUpdate = item }
+        }
+        delegateProxy.onDidNotFindUpdate = { [weak self] in
+            Task { @MainActor in self?.availableUpdate = nil }
+        }
+        delegateProxy.onUserChoice = { [weak self] choice in
+            Task { @MainActor in
+                guard let self else { return }
+                // .install → about to relaunch; .skip → user opted out for this
+                // version. Either way we clear the banner. .dismiss keeps it so
+                // the user can act later from the popover.
+                switch choice {
+                case .install, .skip:
+                    self.availableUpdate = nil
+                case .dismiss:
+                    break
+                @unknown default:
+                    self.availableUpdate = nil
+                }
+            }
+        }
+
         controller.updater.publisher(for: \.canCheckForUpdates)
             .assign(to: &$canCheckForUpdates)
     }
 
     func checkForUpdates() {
         updaterController?.checkForUpdates(nil)
+    }
+}
+
+/// Non-isolated NSObject proxy so `SPUStandardUpdaterController` can call back
+/// from Sparkle's internal queues. Forwards to closures that hop to the main
+/// actor before touching UpdaterViewModel state.
+private final class UpdaterDelegateProxy: NSObject, SPUUpdaterDelegate {
+    var onFoundValidUpdate: ((SUAppcastItem) -> Void)?
+    var onDidNotFindUpdate: (() -> Void)?
+    var onUserChoice: ((SPUUserUpdateChoice) -> Void)?
+
+    func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        onFoundValidUpdate?(item)
+    }
+
+    func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
+        onDidNotFindUpdate?()
+    }
+
+    func updater(
+        _ updater: SPUUpdater,
+        userDidMake choice: SPUUserUpdateChoice,
+        forUpdate updateItem: SUAppcastItem,
+        state: SPUUserUpdateState
+    ) {
+        onUserChoice?(choice)
     }
 }
