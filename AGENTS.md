@@ -30,17 +30,19 @@ vibe-usage-app/                    # SwiftUI macOS menu bar app (SPM, Swift 6, m
 │   │   ├── SyncScheduler.swift    # 30-minute interval auto-sync timer
 │   │   ├── CLIBridge.swift        # Executes vibe-usage CLI as subprocess
 │   │   ├── RuntimeDetector.swift  # Finds Node.js or Bun runtime on the system
-│   │   ├── UpdaterViewModel.swift # Sparkle SPUUpdater bridge for SwiftUI
+│   │   ├── UpdaterViewModel.swift # Sparkle SPUUpdater bridge + SPUUpdaterDelegate proxy (publishes availableUpdate)
 │   │   ├── MenuBarController.swift # NSStatusItem + custom borderless popover panel (multi-line title, animated open/close)
 │   │   ├── PopoverPanel.swift     # NSPanel subclass that becomes key for TextField input
-│   │   └── SettingsWindowController.swift  # NSWindow wrapper (LSUIElement keyboard workaround)
+│   │   ├── SettingsWindowController.swift  # NSWindow wrapper (LSUIElement keyboard workaround)
+│   │   └── ActivationCoordinator.swift     # Centralizes NSApp.activationPolicy across popup + Settings
 │   ├── Utils/
 │   │   ├── Formatters.swift       # Number, cost, date, time formatting
 │   │   └── Log.swift              # Debug logging
 │   └── Resources/
 │       └── Assets.xcassets/       # App icon, menu bar icon
 ├── scripts/
-│   ├── build-app.sh               # Build + sign + notarize pipeline
+│   ├── build-app.sh               # Build + sign + notarize pipeline (runs check-version.sh first)
+│   ├── check-version.sh           # Guards AppConfig/Info.plist version sync + monotonic CFBundleVersion
 │   └── generate-appcast.sh        # Generate Sparkle appcast.xml
 └── dist/                          # Build output (gitignored)
     ├── Vibe Usage.app
@@ -54,7 +56,8 @@ vibe-usage-app/                    # SwiftUI macOS menu bar app (SPM, Swift 6, m
 ```bash
 swift build                              # Debug build
 swift build -c release                   # Release build
-./scripts/build-app.sh                   # Build + codesign .app
+./scripts/check-version.sh               # Validate version sync across AppConfig + Info.plist
+./scripts/build-app.sh                   # Build + codesign .app (runs check-version.sh first)
 ./scripts/build-app.sh --notarize        # Full pipeline: build + sign + notarize + DMG
 ./scripts/generate-appcast.sh            # Generate appcast.xml from dist/VibeUsage.zip
 ```
@@ -96,10 +99,23 @@ VibeUsageApp → AppDelegate → MenuBarController (NSStatusItem + PopoverPanel)
 5. Opening the popover calls `fetchUsageDataIfNeeded()` (60s debounce) — fetch only, no upload
 
 ### Settings Window
-Settings uses a raw `NSWindow` via `SettingsWindowController` because SwiftUI `Settings` scenes don't work in LSUIElement apps. The window temporarily sets `NSApp.setActivationPolicy(.accessory)` for keyboard input, reverts to `.prohibited` on close.
+Settings uses a raw `NSWindow` via `SettingsWindowController` because SwiftUI `Settings` scenes don't work in LSUIElement apps. Opening Settings promotes `NSApp.activationPolicy` to `.regular` (dock icon + click-to-front behavior); `ActivationCoordinator` reverts to `.accessory` / `.prohibited` on close depending on whether the menu-bar popup is still open.
+
+### ActivationCoordinator
+`NSApp.activationPolicy` has to change depending on which surface is visible:
+- popup only → `.accessory` (so `TextField` can receive key events)
+- Settings visible → `.regular` (so the window behaves like a normal app window)
+- neither → `.prohibited` (true LSUIElement)
+
+`ActivationCoordinator` is the only place that calls `setActivationPolicy`. Without it, closing one surface could strand the other — e.g. dismissing the popup would drop the app to `.prohibited` and AppKit would tear down the still-visible Settings window. It also emits `onSettingsVisibilityChange`, which `MenuBarController` uses to lower the popover panel from `.popUpMenu` to `.normal` while Settings is visible (so standard z-ordering lets a click on Settings bring it forward).
+
+### Menu-Bar Click Handling
+The status item renders SwiftUI via `NSHostingView` inside the `NSStatusBarButton`. A vanilla `NSHostingView` consumes hit-tests and swallows the button's action — use `PassThroughHostingView` (defined inside `MenuBarController.swift`), which overrides `hitTest(_:) -> nil` so clicks fall through to the button's `#selector(handleClick:)`.
 
 ### Auto-Updates (Sparkle)
 - `SPUStandardUpdaterController` initialized in `UpdaterViewModel`
+- `UpdaterDelegateProxy` (NSObject conforming to `SPUUpdaterDelegate`) publishes `availableUpdate: SUAppcastItem?` on `didFindValidUpdate`, clears on `didNotFindUpdate` / `userDidMake(.install|.skip)`, keeps banner on `.dismiss`
+- Popover footer renders a "发现更新" button when `availableUpdate != nil`; click re-invokes `checkForUpdates()` → Sparkle's standard install dialog
 - Feed URL: `https://github.com/vibe-cafe/vibe-usage-app/releases/latest/download/appcast.xml`
 - Ed25519 public key in `Info.plist` (`SUPublicEDKey`)
 - Ed25519 private key in developer Keychain (used by `generate_appcast`)
@@ -142,7 +158,7 @@ struct UsageBucket: Codable, Identifiable, Equatable {
 
 - Font sizes: 14pt bold titles, 11-12pt labels, 9-10pt secondary, monospaced for numbers
 - All UI text in Chinese
-- Window level: `.normal` (not `.floating`) — `.floating` hides Sparkle update dialogs
+- Window levels: Settings uses default `.normal` (so Sparkle update dialogs can sit above it); the popover panel uses `.popUpMenu` normally, lowered to `.normal` while Settings is visible
 
 ## Release Process
 
@@ -155,6 +171,11 @@ struct UsageBucket: Codable, Identifiable, Equatable {
 | `VibeUsage/Info.plist` | `CFBundleVersion` | Build number, **must increment** (e.g. `4`) |
 
 `CFBundleVersion` is the integer Sparkle compares. If you only bump the display version but forget this, Sparkle will not detect the update.
+
+`./scripts/check-version.sh` (run automatically at the top of `build-app.sh`) enforces that:
+- `AppConfig.version == CFBundleShortVersionString`
+- `CFBundleVersion` is a plain integer
+- `CFBundleVersion` strictly increased vs. the previous `v*` git tag
 
 ### 2. Commit and Push
 

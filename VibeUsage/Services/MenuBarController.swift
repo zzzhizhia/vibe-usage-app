@@ -80,6 +80,13 @@ final class MenuBarController: NSObject {
 
         configureStatusItem()
         observeStateChanges()
+
+        // Popup sits at .popUpMenu level (above everything) normally. Lower to
+        // .normal while Settings is visible so clicking/dragging Settings can
+        // bring it to the front through standard z-ordering.
+        ActivationCoordinator.shared.onSettingsVisibilityChange = { [weak self] visible in
+            self?.panel?.level = visible ? .normal : .popUpMenu
+        }
     }
 
     // MARK: - Status item
@@ -173,8 +180,10 @@ final class MenuBarController: NSObject {
 
         Task { await appState.fetchUsageDataIfNeeded() }
 
-        // Activation policy bump so TextFields (unconfigured screen) receive keys.
-        NSApp.setActivationPolicy(.accessory)
+        // Bump activation policy so TextFields (unconfigured screen) receive keys.
+        // ActivationCoordinator reconciles .regular/.accessory/.prohibited based
+        // on whether Settings is also visible — avoids clobbering Settings state.
+        ActivationCoordinator.shared.popupDidOpen()
         NSApp.activate(ignoringOtherApps: true)
 
         panel.alphaValue = 0
@@ -187,7 +196,7 @@ final class MenuBarController: NSObject {
         guard let panel, panel.isVisible, !isAnimating else { return }
         animateClose(panel) { [weak self] in
             panel.orderOut(nil)
-            NSApp.setActivationPolicy(.prohibited)
+            ActivationCoordinator.shared.popupDidClose()
             self?.removeEventMonitors()
         }
     }
